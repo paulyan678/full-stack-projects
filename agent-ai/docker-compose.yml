@@ -1,0 +1,25 @@
+services:
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: 5001
+      CLIENT_ORIGIN: http://localhost:8080
+      TRUST_PROXY: "true"
+    expose:
+      - "5001"
+    restart: unless-stopped
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    depends_on:
+      - server
+    ports:
+      - "8080:80"
+    restart: unless-stopped

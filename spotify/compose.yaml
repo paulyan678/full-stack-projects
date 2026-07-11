@@ -1,0 +1,14 @@
+services:
+  api:
+    build:
+      context: ./backend
+    environment:
+      PORT: "8080"
+      PUBLIC_BASE_URL: "http://10.0.2.2:8080"
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5

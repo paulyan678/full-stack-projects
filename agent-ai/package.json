@@ -1,0 +1,12 @@
+{
+  "name": "agent-ai",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "dev": "pnpm --parallel --filter ./server --filter ./client dev",
+    "build": "pnpm --filter ./client build",
+    "test": "pnpm -r test",
+    "check": "pnpm -r check"
+  }
+}

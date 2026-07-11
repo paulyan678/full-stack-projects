@@ -1,0 +1,5 @@
+packages:
+  - server
+  - client
+minimumReleaseAgeExclude:
+  - openai@6.46.0

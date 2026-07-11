@@ -1,0 +1,29 @@
+{
+  "name": "@agent-ai/server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test --test-reporter=spec",
+    "check": "node --check src/server.js && node --check src/app.js && node --check src/answerer.js && node --check src/config.js && node --check src/document-store.js && node --check src/pdf.js && node --check src/retrieval.js && node --check src/mcp/search-client.js && node --check src/mcp/search-server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "multer": "^2.2.0",
+    "openai": "^6.46.0",
+    "pdf-parse": "^2.4.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "pdf-lib": "^1.17.1",
+    "supertest": "^7.2.2"
+  }
+}

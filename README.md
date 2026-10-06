@@ -207,7 +207,7 @@ Key capabilities:
 
 ### Spotify Local
 
-Spotify Local pairs a Ktor fixture API with a native Android application. The app presents feed sections, navigates to playlist details, persists favorite albums in Room, and controls Media3/ExoPlayer through an activity-scoped floating player with play, pause, progress, and seek behavior.
+Spotify Local pairs a Ktor fixture API with a native Android application. The app presents feed sections, navigates to playlist details, persists favorite albums in Room, and controls Media3/ExoPlayer through a process-scoped playback controller and floating controls for play, pause, progress, and seek.
 
 The Android client uses Compose, MVVM, `StateFlow`, Hilt, Retrofit, Navigation Compose, Room, Coil, and a playback interface that can be replaced in unit tests. The Ktor server preserves the documented feed/playlist/song contracts while generating deterministic SVG covers and five-second WAV tracks at request time, avoiding copyrighted binaries and external media hosting.
 

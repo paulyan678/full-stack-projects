@@ -21,7 +21,7 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class Media3PlaybackTest {
     @Test
-    fun generatedWavPlaysAndSeeks() = runBlocking {
+    fun generatedWavPlaysAndSeeks() = runBlocking<Unit> {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val wav = File.createTempFile("playback-", ".wav", context.cacheDir)
         wav.writeBytes(silentWav())

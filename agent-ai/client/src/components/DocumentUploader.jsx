@@ -46,7 +46,7 @@ export function DocumentUploader({ document, busy, onUpload, onClear }) {
       <div className="upload-icon" aria-hidden="true">↥</div>
       <p className="eyebrow">Your private workspace</p>
       <h2>Drop a PDF to begin</h2>
-      <p>Text is held in memory for one hour and is never committed to the repository.</p>
+      <p>Sessions expire automatically. Replacing a document requests its early deletion.</p>
       <button className="primary-button" type="button" disabled={busy} onClick={() => inputRef.current?.click()}>
         {busy ? "Reading document…" : "Choose PDF"}
       </button>

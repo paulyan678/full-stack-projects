@@ -1,0 +1,12 @@
+[
+  {"id":"membership","question":"Is membership free for residents?","expectedPage":1},
+  {"id":"loan","question":"How many days can books be borrowed?","expectedPage":1},
+  {"id":"renewal","question":"What restricts renewing a book?","expectedPage":1},
+  {"id":"saturday","question":"What are the Saturday opening hours?","expectedPage":2},
+  {"id":"accessibility","question":"Where is the accessible entrance?","expectedPage":2},
+  {"id":"room","question":"How long may a study room be reserved?","expectedPage":3},
+  {"id":"printing","question":"What does color printing cost per page?","expectedPage":3},
+  {"id":"laptop","question":"When must laptops be returned?","expectedPage":3},
+  {"id":"unknown-space","question":"Who piloted the orbital spacecraft?","expectedPage":null},
+  {"id":"unknown-food","question":"What ingredients are in sushi?","expectedPage":null}
+]

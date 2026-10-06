@@ -1,8 +1,8 @@
 import OpenAI from "openai";
 import { extractiveAnswer } from "./retrieval.js";
 
-export function createAnswerer({ apiKey, model = "gpt-5" } = {}) {
-  if (!apiKey) {
+export function createAnswerer({ apiKey, model = "gpt-5", client: suppliedClient } = {}) {
+  if (!apiKey && !suppliedClient) {
     return {
       mode: "local",
       async answer({ question, chunks }) {
@@ -16,7 +16,7 @@ export function createAnswerer({ apiKey, model = "gpt-5" } = {}) {
     };
   }
 
-  const client = new OpenAI({ apiKey });
+  const client = suppliedClient ?? new OpenAI({ apiKey, timeout: 15_000, maxRetries: 1 });
   return {
     mode: "openai",
     async answer({ question, chunks }) {

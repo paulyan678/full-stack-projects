@@ -7,6 +7,7 @@
     "dev": "pnpm --parallel --filter ./server --filter ./client dev",
     "build": "pnpm --filter ./client build",
     "test": "pnpm -r test",
-    "check": "pnpm -r check"
+    "check": "pnpm -r check",
+    "eval": "pnpm --filter ./server eval"
   }
 }

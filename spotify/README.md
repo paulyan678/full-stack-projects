@@ -69,6 +69,8 @@ Important Android packages:
 - `player` and `ui/player`: testable playback boundary, Media3 implementation, and floating player.
 - `ui/navigation`: activity-level player plus Home/Favorites/Playlist navigation.
 
+The application registers `SvgDecoder.Factory()` on its shared Coil 2 image loader; adding the SVG dependency alone does not register the decoder in that version. A device test resolves the application loader and decodes an SVG.
+
 The playback boundary is deliberately an interface. Unit tests can drive `PlayerViewModel` without constructing an Android `ExoPlayer`; production still uses the Hilt-provided Media3 implementation.
 
 ## Prerequisites
@@ -150,12 +152,14 @@ cd android
 ./gradlew testDebugUnitTest
 ```
 
-Room DAO instrumentation test (requires a running emulator/device):
+Device instrumentation checks (requires a running emulator/device):
 
 ```bash
 cd android
 ./gradlew connectedDebugAndroidTest
 ```
+
+These execute Room save/remove and on-disk database reopen persistence, the actual application SVG loader, and real Media3 WAV playback/pause/seek. Database reopen is not a full operating-system process-restart test. The Media3 test uses a local WAV to keep device tests independent of a host server. Record a separate manual Ktor-to-Android navigation/playback run before claiming the complete app flow was exercised. The root Spotify workflow installs SDK 35 and runs these tests on an emulator; inspect that run's reports to establish execution.
 
 Compile the complete debug app:
 

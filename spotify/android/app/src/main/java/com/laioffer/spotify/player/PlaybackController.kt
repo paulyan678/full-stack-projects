@@ -7,6 +7,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,7 +35,7 @@ interface PlaybackController {
 @Singleton
 class Media3PlaybackController @Inject constructor(
     private val player: ExoPlayer,
-) : PlaybackController, Player.Listener {
+) : PlaybackController, Player.Listener, AutoCloseable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutableState = MutableStateFlow(PlaybackSnapshot())
     override val state: StateFlow<PlaybackSnapshot> = mutableState.asStateFlow()
@@ -79,6 +80,13 @@ class Media3PlaybackController @Inject constructor(
             isPlaying = false,
             error = error.localizedMessage ?: "Playback failed",
         )
+    }
+
+    /** Releases the process-scoped player when its owner is explicitly shut down. */
+    override fun close() {
+        scope.cancel()
+        player.removeListener(this)
+        player.release()
     }
 
     private fun updatePosition() {

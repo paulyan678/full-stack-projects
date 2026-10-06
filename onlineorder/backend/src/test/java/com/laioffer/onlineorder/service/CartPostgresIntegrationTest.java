@@ -31,6 +31,7 @@ import org.springframework.beans.factory.config.BeanPostProcessor;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @Tag("postgres")
 @SpringBootTest
@@ -50,6 +51,7 @@ class CartPostgresIntegrationTest {
     @Autowired MenuItemRepository menus;
     @Autowired CartRepository carts;
     @Autowired QueryBarrier barrier;
+    @Autowired JdbcTemplate jdbc;
     private long customerId;
     private MenuItemEntity item;
 
@@ -119,6 +121,24 @@ class CartPostgresIntegrationTest {
             try {
                 assertThat(barrier.captured.await(5, TimeUnit.SECONDS)).isTrue();
                 add = executor.submit(() -> service.addMenuItemToCart(customerId, item.id()));
+                // Observe a real PostgreSQL lock wait before allowing checkout to commit.
+                // Submitting a Future alone would also pass with sequential execution.
+                boolean waitingOnCheckout = false;
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+                while (!add.isDone() && System.nanoTime() < deadline) {
+                    waitingOnCheckout = Boolean.TRUE.equals(jdbc.queryForObject("""
+                            SELECT EXISTS (
+                                SELECT 1 FROM pg_stat_activity
+                                WHERE wait_event_type = 'Lock'
+                                  AND ? = ANY(pg_blocking_pids(pid))
+                                  AND query LIKE 'SELECT id, customer_id, total_price FROM carts%'
+                            )
+                            """, Boolean.class, barrier.backendPid));
+                    if (waitingOnCheckout) break;
+                    TimeUnit.MILLISECONDS.sleep(10);
+                }
+                assertThat(waitingOnCheckout).as("add must wait on checkout's cart row lock").isTrue();
+                assertThat(add.isDone()).isFalse();
             } finally {
                 barrier.release.countDown();
             }
@@ -133,6 +153,7 @@ class CartPostgresIntegrationTest {
     static class QueryBarrier {
         volatile String method;
         volatile long customerId;
+        volatile int backendPid;
         volatile CountDownLatch captured;
         volatile CountDownLatch release;
         final AtomicBoolean first = new AtomicBoolean();
@@ -155,7 +176,7 @@ class CartPostgresIntegrationTest {
         @Bean QueryBarrier queryBarrier() { return new QueryBarrier(); }
 
         @Bean
-        static BeanPostProcessor repositoryBarrier(QueryBarrier barrier) {
+        static BeanPostProcessor repositoryBarrier(QueryBarrier barrier, JdbcTemplate jdbc) {
             return new BeanPostProcessor() {
                 @Override
                 public Object postProcessAfterInitialization(Object bean, String beanName) {
@@ -167,6 +188,7 @@ class CartPostgresIntegrationTest {
                         if (invocation.getMethod().getName().equals(barrier.method)
                                 && invocation.getArguments()[0].equals(barrier.customerId)
                                 && barrier.first.compareAndSet(true, false)) {
+                            barrier.backendPid = jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class);
                             barrier.captured.countDown();
                             if (!barrier.release.await(10, TimeUnit.SECONDS)) {
                                 throw new IllegalStateException("Query barrier timed out");

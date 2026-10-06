@@ -1,0 +1,35 @@
+name: Agent AI
+on:
+  push:
+    paths: ['agent-ai/**', '.github/workflows/agent-ai.yml']
+  pull_request:
+    paths: ['agent-ai/**', '.github/workflows/agent-ai.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent-ai
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: agent-ai/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm check
+      - run: pnpm --silent eval > retrieval-evaluation.json
+      - run: pnpm audit --audit-level high
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: retrieval-evaluation
+          path: agent-ai/retrieval-evaluation.json

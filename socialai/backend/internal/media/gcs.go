@@ -15,19 +15,20 @@ import (
 // GCS uses the Google Cloud Storage JSON API. On GCE/GAE it obtains an access
 // token from the metadata server; GCS_BEARER_TOKEN is convenient elsewhere.
 type GCS struct {
-	bucket        string
-	explicitToken string
-	client        *http.Client
-	mu            sync.Mutex
-	metadataToken string
-	metadataExp   time.Time
+	bucket         string
+	explicitToken  string
+	client         *http.Client
+	metadataClient *http.Client
+	mu             sync.Mutex
+	metadataToken  string
+	metadataExp    time.Time
 }
 
 func NewGCS(bucket, token string) (*GCS, error) {
 	if strings.TrimSpace(bucket) == "" {
 		return nil, fmt.Errorf("GCS_BUCKET is required")
 	}
-	return &GCS{bucket: bucket, explicitToken: token, client: &http.Client{Timeout: 60 * time.Second}}, nil
+	return &GCS{bucket: bucket, explicitToken: token, client: &http.Client{Timeout: 60 * time.Second}, metadataClient: &http.Client{Timeout: 3 * time.Second}}, nil
 }
 
 func (g *GCS) Save(ctx context.Context, key, contentType string, source io.Reader) (Object, error) {
@@ -90,8 +91,7 @@ func (g *GCS) token(ctx context.Context) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Metadata-Flavor", "Google")
-	client := &http.Client{Timeout: 3 * time.Second}
-	res, err := client.Do(req)
+	res, err := g.metadataClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("get GCS metadata token (or set GCS_BEARER_TOKEN): %w", err)
 	}

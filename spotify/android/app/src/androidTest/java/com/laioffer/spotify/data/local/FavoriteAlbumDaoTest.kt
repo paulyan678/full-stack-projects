@@ -32,6 +32,21 @@ class FavoriteAlbumDaoTest {
     fun closeDatabase() = database.close()
 
     @Test
+    fun diskFavoritesSurviveDatabaseReopen() = runTest {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val name = "favorite-reopen-test.db"
+        context.deleteDatabase(name)
+        try {
+            val album = FavoriteAlbumEntity(9, "Persisted", "2026", "cover", "Artist", "Saved")
+            val first = Room.databaseBuilder(context, SpotifyDatabase::class.java, name).build()
+            try { first.favoriteAlbumDao().upsert(album) } finally { first.close() }
+            val reopened = Room.databaseBuilder(context, SpotifyDatabase::class.java, name).build()
+            try { assertEquals(album, reopened.favoriteAlbumDao().observeAll().first().single()) }
+            finally { reopened.close() }
+        } finally { context.deleteDatabase(name) }
+    }
+
+    @Test
     fun favoriteCanBeSavedObservedAndRemoved() = runTest {
         val album = FavoriteAlbumEntity(1, "Midnight", "2026", "cover", "Artist", "Description")
 

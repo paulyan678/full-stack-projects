@@ -6,18 +6,19 @@ async function parseResponse(response) {
   throw new Error(payload.error || `Request failed with status ${response.status}`);
 }
 
-export async function uploadDocument(file) {
+export async function uploadDocument(file, { signal } = {}) {
   const body = new FormData();
   body.append("file", file);
-  return parseResponse(await fetch(`${API_URL}/api/documents`, { method: "POST", body }));
+  return parseResponse(await fetch(`${API_URL}/api/documents`, { method: "POST", body, signal }));
 }
 
-export async function askDocument({ documentId, question, includeWeb }) {
+export async function askDocument({ documentId, question, includeWeb }, { signal } = {}) {
   return parseResponse(
     await fetch(`${API_URL}/api/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ documentId, question, includeWeb }),
+      signal,
     })
   );
 }

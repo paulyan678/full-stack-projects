@@ -1,0 +1,62 @@
+name: OnlineOrder
+on:
+  push:
+    branches: [main]
+    paths: ['onlineorder/**', '.github/workflows/onlineorder.yml']
+  pull_request:
+    paths: ['onlineorder/**', '.github/workflows/onlineorder.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: onlineorder_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      POSTGRES_TEST_URL: jdbc:postgresql://localhost:5432/onlineorder_test
+      POSTGRES_TEST_USER: postgres
+      POSTGRES_TEST_PASSWORD: postgres
+    defaults:
+      run:
+        working-directory: onlineorder/backend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-java@v6.0.1
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v6.4.0
+      - run: ./gradlew test postgresTest bootJar --no-daemon
+      - uses: actions/upload-artifact@v7.0.1
+        if: always()
+        with:
+          name: onlineorder-test-results
+          path: onlineorder/backend/build/reports/tests/
+  frontend:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: onlineorder/frontend
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: pnpm/action-setup@v6.1.0
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+          cache-dependency-path: onlineorder/frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm audit --audit-level high

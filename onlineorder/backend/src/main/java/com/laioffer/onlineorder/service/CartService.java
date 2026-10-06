@@ -14,9 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -35,7 +34,6 @@ public class CartService {
         this.orderItemRepository = orderItemRepository;
     }
 
-    @CacheEvict(cacheNames = "carts", key = "#customerId")
     @Transactional
     public void addMenuItemToCart(long customerId, long menuItemId) {
         CartEntity cart = getLockedCart(customerId);
@@ -55,8 +53,9 @@ public class CartService {
         cartRepository.updateTotalPrice(cart.id(), cart.totalPrice().add(menuItem.price()));
     }
 
-    @Cacheable(cacheNames = "carts", key = "#customerId")
-    @Transactional(readOnly = true)
+    // Read total and line items from one snapshot. Mutable carts are not cached:
+    // a delayed read could otherwise repopulate an entry after checkout evicts it.
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public CartDto getCart(Long customerId) {
         CartEntity cart = cartRepository.findByCustomerId(customerId)
                 .orElseThrow(() -> new ResourceNotFoundException("Cart was not found"));
@@ -80,7 +79,6 @@ public class CartService {
         return new CartDto(cart, itemDtos);
     }
 
-    @CacheEvict(cacheNames = "carts", key = "#customerId")
     @Transactional
     public void clearCart(Long customerId) {
         CartEntity cart = getLockedCart(customerId);

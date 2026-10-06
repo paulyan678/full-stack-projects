@@ -19,7 +19,7 @@ spring:
     default-property-inclusion: non_null
     property-naming-strategy: SNAKE_CASE
   cache:
-    cache-names: restaurants,menus,carts
+    cache-names: restaurants,menus
     caffeine:
       spec: maximumSize=500,expireAfterWrite=60s
   lifecycle:

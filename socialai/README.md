@@ -170,3 +170,12 @@ All protected endpoints expect `Authorization: Bearer <token>`.
 | `GET` | `/healthz` | Liveness check |
 
 Legacy endpoints `/signup`, `/signin`, `/upload`, `/search`, and `/post/{id}` remain available as compatibility aliases. Responses use JSON; errors have the shape `{ "error": { "code": "...", "message": "..." } }`.
+
+
+## Adapter contracts and lifecycle boundaries
+
+The Go suite includes successful and failing HTTP contracts for Elasticsearch (mapping setup, write visibility, all-term search, ownership, throttling) and GCS (object encoding, upload/delete status, metadata-token caching/refresh), plus image-provider errors. These use local HTTP servers or injected transports with synthetic credentials. They do not validate live cloud permissions, bucket visibility, billing, or deployed service versions.
+
+Publishing consumes a preview once; persistence failure restores it for retry. Failed discard also restores owner access so deletion can be retried. Regression tests cover these boundaries. Post metadata and media objects are separate stores, so there is no distributed transaction: failed compensating deletions can leave orphan objects. Preview metadata is process-local and expires lazily on generation/publish; restarting loses preview references while stored objects may remain. A production deployment needs durable preview records, bounded cleanup/reconciliation, and private-object access controls before promising durable retention/deletion guarantees.
+
+Multipart temporary files are removed after upload handling. Generated previews and published URLs follow the configured storage backend's access policy; a GCS URL by itself does not grant read permission.

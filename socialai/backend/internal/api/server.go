@@ -188,6 +188,7 @@ func (s *Server) upload(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid_upload", "Upload is malformed or exceeds the configured size limit.")
 		return
 	}
+	defer r.MultipartForm.RemoveAll()
 	message := strings.TrimSpace(r.FormValue("message"))
 	if len(message) == 0 || len(message) > 500 {
 		writeError(w, http.StatusBadRequest, "invalid_message", "Message must contain 1 to 500 characters.")

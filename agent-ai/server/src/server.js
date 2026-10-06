@@ -19,6 +19,7 @@ const server = app.listen(config.port, () => {
 const shutdown = async (signal) => {
   console.log(`Received ${signal}; shutting down.`);
   server.close();
+  store.close();
   await webSearch.close();
 };
 

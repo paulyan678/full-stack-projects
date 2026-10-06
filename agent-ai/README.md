@@ -14,7 +14,7 @@ This is a live local run of the credential-free path: a real two-page PDF is par
 
 - React 19 + Vite responsive UI with drag-and-drop upload, conversation history, source excerpts, dictation, speech playback, and keyboard/accessibility support
 - Express 5 API with in-memory, expiring document sessions (no shared global upload path)
-- real PDF text extraction and page-level source provenance
+- real PDF text extraction and page-labeled source excerpts
 - deterministic local retrieval and answer fallback
 - optional OpenAI Responses API synthesis, configured with `OPENAI_API_KEY`
 - optional MCP stdio server/client pair for SerpAPI search, configured with `SERPAPI_KEY`
@@ -54,7 +54,7 @@ flowchart LR
     Result --> UI
 ```
 
-Uploaded text lives only in process memory and expires after `DOCUMENT_TTL_MS`. Restarting the server clears it immediately. Per-document sessions avoid process-global file paths, unsafe original-name disk writes, and cross-user document leakage.
+Uploaded text lives only in process memory. Access expires at `DOCUMENT_TTL_MS`; periodic cleanup removes idle records on the next sweep (at most 60 seconds later while the event loop is responsive). Restart and graceful shutdown clear the store. Replacing a document aborts outstanding browser requests and requests early deletion; a response that arrives after replacement is discarded. IDs are unguessable bearer capabilities, not authenticated user accounts: anyone holding an ID can query or delete that session.
 
 ## Requirements
 
@@ -66,7 +66,7 @@ Uploaded text lives only in process memory and expires after `DOCUMENT_TTL_MS`. 
 
 ```bash
 corepack enable
-pnpm install
+pnpm install --frozen-lockfile
 cp .env.example .env
 pnpm dev
 ```
@@ -89,9 +89,13 @@ The model is a configuration value so it can be pinned or upgraded independently
 pnpm test
 pnpm check
 pnpm build
+pnpm eval
+pnpm audit --audit-level high
 ```
 
-`pnpm test` covers retrieval, expiry, a generated real PDF, upload validation, the complete upload/chat/delete API flow, CORS, and user-facing React interactions.
+`pnpm test` covers retrieval, scheduled retention cleanup, actual PDF extraction, upload/chat/delete, CORS, replacement races, and successful/failing provider contracts through local fakes. No provider credentials are needed. `pnpm eval` parses a checked-in fictional CC0 PDF and reports page-retrieval metrics; see [evaluation scope and labels](./server/eval/README.md). It is a regression smoke evaluation, not evidence of general model answer quality.
+
+Conversation history is displayed in the current browser session; the API receives each question independently. Source excerpts have page labels but do not open an embedded PDF viewer. Page/text limits are checked after parsing and do not enforce a hard parser CPU or memory budget.
 
 ## Docker
 

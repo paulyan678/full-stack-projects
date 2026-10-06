@@ -105,3 +105,18 @@ test("CORS blocks untrusted browser origins", async () => {
   const response = await request(fixture().app).get("/api/health").set("Origin", "https://evil.example").expect(403);
   assert.match(response.body.error, /origin/i);
 });
+
+test("multipart byte limits and upload rate limits survive dependency updates", async () => {
+  const { app } = fixture();
+  await request(app).post("/api/documents")
+    .attach("file", Buffer.from(`%PDF-${"x".repeat(1024)}`), { filename: "large.pdf", contentType: "application/pdf" })
+    .expect(413);
+  // The rejected request also consumes a slot, preventing unlimited parser attempts.
+  for (let attempt = 0; attempt < 19; attempt++) {
+    await request(app).post("/api/documents")
+      .attach("file", Buffer.from("%PDF-test"), { filename: "guide.pdf", contentType: "application/pdf" })
+      .expect(201);
+  }
+  const limited = await request(app).post("/api/documents").expect(429);
+  assert.ok(Number(limited.headers["retry-after"]) > 0);
+});

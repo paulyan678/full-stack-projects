@@ -25,3 +25,43 @@ test("web results retain only bounded HTTP(S) links", () => {
   ], 5);
   assert.deepEqual(results, [{ title: "Safe", link: "https://example.test/guide", snippet: "Useful" }]);
 });
+
+async function invokeSearch(fetchImpl) {
+  const { InMemoryTransport } = await import("@modelcontextprotocol/sdk/inMemory.js");
+  const { Client } = await import("@modelcontextprotocol/sdk/client/index.js");
+  const { createSearchServer } = await import("../src/mcp/search-server.js");
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const server = createSearchServer({ apiKey: "synthetic-key", fetchImpl });
+  const client = new Client({ name: "contract-test", version: "1" });
+  try {
+    await server.connect(serverTransport);
+    await client.connect(clientTransport);
+    return await client.callTool({ name: "search_web", arguments: { query: "public synthetic policy", num: 2 } });
+  } finally {
+    await client.close();
+    await server.close();
+  }
+}
+
+test("MCP successful HTTP contract bounds and normalizes provider results", async () => {
+  const result = await invokeSearch(async (url, options) => {
+    assert.equal(url.origin, "https://serpapi.com");
+    assert.equal(url.searchParams.get("q"), "public synthetic policy");
+    assert.equal(url.searchParams.get("num"), "2");
+    assert.ok(options.signal instanceof AbortSignal);
+    return Response.json({ organic_results: [
+      { title: "Policy", link: "https://example.test/policy", snippet: "Synthetic result" },
+      { title: "Unsafe", link: "javascript:alert(1)" },
+    ] });
+  });
+  assert.equal(result.isError, undefined);
+  assert.deepEqual(JSON.parse(result.content[0].text).results, [
+    { title: "Policy", link: "https://example.test/policy", snippet: "Synthetic result" },
+  ]);
+});
+
+test("MCP upstream failure is an explicit tool error rather than a fabricated result", async () => {
+  const result = await invokeSearch(async () => new Response("unavailable", { status: 503 }));
+  assert.equal(result.isError, true);
+  assert.match(JSON.parse(result.content[0].text).error, /HTTP 503/);
+});

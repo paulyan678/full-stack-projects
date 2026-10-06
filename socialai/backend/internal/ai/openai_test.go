@@ -77,3 +77,15 @@ func TestOpenAIImageDownloadRejectsLocalAddresses(t *testing.T) {
 		t.Fatal("private generated image address was accepted")
 	}
 }
+
+func TestOpenAIHTTPFailureIsNotAnImage(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte(`{"error":{"message":"synthetic rate limit"}}`))
+	}))
+	defer server.Close()
+	client, _ := NewOpenAI("synthetic-key", "fixture-model", server.URL)
+	if _, err := client.Generate(context.Background(), "prompt"); err == nil {
+		t.Fatal("HTTP failure accepted as a generated image")
+	}
+}

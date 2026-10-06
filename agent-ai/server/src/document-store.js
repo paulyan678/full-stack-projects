@@ -3,11 +3,20 @@ import { chunkPages } from "./retrieval.js";
 
 export class DocumentStore {
   #documents = new Map();
+  #cleanupTimer;
+  #clearInterval;
 
-  constructor({ ttlMs = 60 * 60 * 1000, now = () => Date.now(), maxDocuments = 50 } = {}) {
+  constructor({ ttlMs = 60 * 60 * 1000, now = () => Date.now(), maxDocuments = 50,
+    setIntervalFn = setInterval, clearIntervalFn = clearInterval } = {}) {
+    if (!Number.isFinite(ttlMs) || ttlMs <= 0) throw new RangeError("ttlMs must be positive");
+    if (!Number.isInteger(maxDocuments) || maxDocuments < 1) throw new RangeError("maxDocuments must be positive");
     this.ttlMs = ttlMs;
     this.now = now;
     this.maxDocuments = maxDocuments;
+    this.cleanupIntervalMs = Math.min(ttlMs, 60_000);
+    this.#clearInterval = clearIntervalFn;
+    this.#cleanupTimer = setIntervalFn(() => this.cleanup(), this.cleanupIntervalMs);
+    this.#cleanupTimer?.unref?.();
   }
 
   put({ filename, pages }) {
@@ -31,7 +40,7 @@ export class DocumentStore {
   get(id) {
     const document = this.#documents.get(id);
     if (!document) return null;
-    if (this.now() - document.createdAt > this.ttlMs) {
+    if (this.now() - document.createdAt >= this.ttlMs) {
       this.#documents.delete(id);
       return null;
     }
@@ -42,9 +51,14 @@ export class DocumentStore {
     return this.#documents.delete(id);
   }
 
+  close() {
+    this.#clearInterval(this.#cleanupTimer);
+    this.#documents.clear();
+  }
+
   cleanup() {
     for (const [id, document] of this.#documents) {
-      if (this.now() - document.createdAt > this.ttlMs) this.#documents.delete(id);
+      if (this.now() - document.createdAt >= this.ttlMs) this.#documents.delete(id);
     }
   }
 }

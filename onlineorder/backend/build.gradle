@@ -37,5 +37,19 @@ dependencies {
 }
 
 tasks.named('test') {
-    useJUnitPlatform()
+    useJUnitPlatform { excludeTags 'postgres' }
+}
+
+tasks.register('postgresTest', Test) {
+    description = 'Runs concurrency contracts against a disposable PostgreSQL database.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform { includeTags 'postgres' }
+    doFirst {
+        if (!System.getenv('POSTGRES_TEST_URL')) {
+            throw new GradleException('Set POSTGRES_TEST_URL to a disposable PostgreSQL database.')
+        }
+    }
+    outputs.upToDateWhen { false }
 }

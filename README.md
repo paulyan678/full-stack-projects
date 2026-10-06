@@ -76,7 +76,7 @@ flowchart LR
     react -->|"Vite proxy or Nginx /api"| security["Spring Security: session + CSRF"]
     security --> controllers["Auth, menu, customer, and cart controllers"]
     controllers --> services["Transactional services"]
-    services <--> cache["Spring Cache: Caffeine in PostgreSQL mode"]
+    services <--> cache["Restaurant/menu cache only"]
     services --> jdbc["Spring Data JDBC repositories"]
     jdbc --> profile{"Active data profile"}
     profile -->|"demo"| h2["In-memory H2 + seeded schema"]
@@ -132,10 +132,11 @@ flowchart LR
 ```text
 full-stack-projects/
 ├── README.md                  Monorepo overview and verification guide
+├── .github/workflows/         Application CI with monorepo paths
 ├── docs/assets/demos/         README animations and static poster frames
 ├── agent-ai/
 │   ├── client/                React/Vite browser app
-│   ├── server/                Express API, RAG, PDF, and MCP layers
+│   ├── server/                Express API, retrieval, PDF, MCP, and evaluation
 │   ├── pnpm-lock.yaml         Shared workspace dependency lock
 │   └── docker-compose.yml     Nginx web + API stack
 ├── onlineorder/
@@ -146,7 +147,6 @@ full-stack-projects/
 │   ├── backend/               Go API and adapter implementations
 │   ├── web/                   React/Vite client
 │   ├── data/ and media/       Ignored local persistence locations
-│   ├── .github/workflows/     Go and web CI
 │   └── docker-compose.yml     API + Nginx web stack
 └── spotify/
     ├── backend/               Independent Ktor/Gradle API
@@ -167,7 +167,7 @@ Several services default to port `8080`—OnlineOrder, SocialAI, and Spotify's b
 
 Agent AI is a local-first retrieval-augmented generation application. A user uploads a real PDF, receives an opaque expiring document session, asks questions, and sees page-aware source excerpts with each grounded answer. The responsive React interface includes drag-and-drop upload, conversation history, dictation, speech playback, keyboard operation, and user-facing error states.
 
-The Express API performs PDF validation and extraction, deterministic passage ranking, bounded uploads and questions, rate limiting, CORS allowlisting, and in-memory session expiry. Local mode needs no credentials. Optional provider boundaries add OpenAI Responses synthesis and an MCP stdio child server backed by SerpAPI without exposing keys to the browser.
+The Express API performs PDF validation and extraction, deterministic passage ranking, bounded uploads and questions, rate limiting, CORS allowlisting, and in-memory session expiry with periodic removal. Local mode needs no credentials. Optional provider boundaries add OpenAI Responses synthesis and an MCP stdio child server backed by SerpAPI without exposing keys to the browser.
 
 Key capabilities:
 
@@ -187,7 +187,7 @@ Key capabilities:
 
 - session fixation protection and CSRF on state-changing browser requests;
 - passwords in request bodies and BCrypt hashes at rest;
-- authenticated, per-customer carts with mutation-driven Spring Cache eviction—Caffeine in the default/PostgreSQL profile and the simple in-memory provider in the demo profile;
+- authenticated, per-customer cart snapshots read directly at repeatable-read isolation; restaurant/menu data remains cacheable;
 - H2-backed service and HTTP integration tests independent of Docker;
 - production JAR and frontend bundle verification.
 
@@ -203,11 +203,11 @@ Key capabilities:
 - upload size/type validation, storage traversal protection, CORS, and ownership checks;
 - race-tested repository and HTTP behavior;
 - optional Elasticsearch, GCS, and OpenAI adapters behind local implementations;
-- a verified end-to-end browser journey from registration through AI publishing.
+- a local registration-to-publishing browser flow, with current behavior checked by tests and CI rather than inferred from the historical demo recording.
 
 ### Spotify Local
 
-Spotify Local pairs a Ktor fixture API with a native Android application. The app presents feed sections, navigates to playlist details, persists favorite albums in Room, and controls Media3/ExoPlayer through an activity-scoped floating player with play, pause, progress, and seek behavior.
+Spotify Local pairs a Ktor fixture API with a native Android application. The app presents feed sections, navigates to playlist details, persists favorite albums in Room, and controls Media3/ExoPlayer through a process-scoped playback controller and floating controls for play, pause, progress, and seek.
 
 The Android client uses Compose, MVVM, `StateFlow`, Hilt, Retrofit, Navigation Compose, Room, Coil, and a playback interface that can be replaced in unit tests. The Ktor server preserves the documented feed/playlist/song contracts while generating deterministic SVG covers and five-second WAV tracks at request time, avoiding copyrighted binaries and external media hosting.
 
@@ -216,101 +216,65 @@ Key capabilities:
 - API, repository, database, ViewModel, navigation, and playback separation;
 - local favorites that survive process restarts;
 - shared playback UI across Home, Favorites, and Playlist destinations;
-- complete debug APK, Android-test APK, Hilt/Room code generation, and lint verification;
+- Android CI tasks for debug/test APK assembly, Hilt/Room code generation, lint, and emulator instrumentation;
 - credential-free, referentially validated sample media.
 
 ## Testing and verification
 
-The following commands and results were verified on 2026-07-11. Test counts refer to executed test cases/functions, not just test files.
+Root workflows in [`.github/workflows`](./.github/workflows) run each application's locked install, tests, and build on relevant changes. Agent AI adds retrieval evaluation and dependency audit; OnlineOrder runs a real PostgreSQL service; SocialAI uses the race detector and HTTP contract fakes; Spotify builds/lints Android and runs device instrumentation on an emulator. Workflow artifacts hold test reports and Android packages. Check the run for the exact commit: configuration alone is not a passing CI result.
 
-### Agent AI — 21 tests
+| Application | Local verification on 2026-10-06 | Separate integration boundary |
+| --- | --- | --- |
+| Agent AI | 26 Node tests + 6 React tests; production build; ten-question synthetic PDF retrieval evaluation; dependency audit passed after updates | OpenAI and SerpAPI success/error contracts use injected fakes; no paid live provider calls |
+| OnlineOrder | 16 regular Java tests + 3 real PostgreSQL integration tests; JAR build | PostgreSQL tests require a disposable database; checkout is a cart reset, not payment/order history |
+| SocialAI | Go tests pass with race detection and vet, including GCS/Elasticsearch HTTP contracts and publish/discard retries | Fakes verify request/response behavior, not live cloud IAM, bucket ACLs, or Elasticsearch deployment |
+| Spotify Local | 7 Ktor tests and offline fixture validation | Local Android SDK unavailable during this verification; build, six JVM tests, and four device tests are assigned to Android CI and must be checked in its run |
+
+The previous July snapshot reported 84 tests. Added regressions and distinct integration tasks make that frozen total obsolete; use individual suite output and CI artifacts. A compiled test APK is not an executed device test. The source-rendered Spotify walkthrough remains explicitly labeled and is not runtime evidence.
 
 ```bash
+# Node.js 24 + pnpm 11
 cd agent-ai
+pnpm install --frozen-lockfile
 pnpm test
 pnpm check
-pnpm build
+pnpm eval
 pnpm audit --audit-level high
-```
 
-- Server: 18 passing Node tests.
-- Client: 3 passing Vitest interaction tests.
-- Syntax/type-adjacent checks, production client build, and high-severity dependency audit passed.
-- The localhost UI was rendered in a browser with no console errors.
-
-Integration coverage: the credential-free PDF/RAG path is covered by the test suite. Compose requires Docker, while live OpenAI and SerpAPI calls require user-owned keys.
-
-### OnlineOrder — 24 tests
-
-```bash
-cd onlineorder/backend
-./gradlew clean test bootJar
+# JDK 21; regular tests do not require PostgreSQL
+cd ../onlineorder/backend
+./gradlew test bootJar
+# For a disposable PostgreSQL database, set POSTGRES_TEST_URL,
+# POSTGRES_TEST_USER, and POSTGRES_TEST_PASSWORD, then:
+./gradlew postgresTest
 
 cd ../frontend
 pnpm install --frozen-lockfile
-pnpm audit --audit-level=high
-pnpm test
-pnpm build
-```
-
-- Backend: 15 passing tests—7 authenticated API integration cases and 8 service cases.
-- Frontend: 9 passing Vitest cases.
-- Spring Boot JAR, production web bundle, and high-severity dependency audit passed.
-
-Integration coverage: the backend suite uses its PostgreSQL-compatible H2 profile. Run the Compose stack for a PostgreSQL integration smoke test.
-
-### SocialAI — 26 tests
-
-```bash
-cd socialai/backend
-go test -race ./... -count=1
-go vet ./...
-go build -o /tmp/socialai-server ./cmd/server
-
-cd ../web
 pnpm test
 pnpm build
 pnpm audit --audit-level high
-```
 
-- Backend: 20 passing Go test functions under the race detector.
-- Frontend: 2 passing files / 6 passing Vitest cases.
-- `go vet`, server binary build, production web bundle, and high-severity dependency audit passed.
-- A live local API and browser flow completed register → login → local image generation → publish → collection with no console errors.
+cd ../../socialai/backend
+go test -race ./... -count=1
+go vet ./...
+go build ./cmd/server
+cd ../web
+pnpm install --frozen-lockfile
+pnpm test
+pnpm build
+pnpm audit --audit-level high
 
-Integration coverage: local adapters are covered by the test suite. Elasticsearch, GCS, and OpenAI integration checks require their external services or credentials; Compose requires Docker.
-
-### Spotify Local — 13 executed tests, plus one packaged instrumentation test
-
-```bash
-cd spotify/backend
+cd ../../spotify/backend
 ./gradlew test
-PUBLIC_BASE_URL=http://127.0.0.1:8080 ./gradlew run
-
-# In a second terminal while the backend is running:
 cd ..
-BASE_URL=http://127.0.0.1:8080 ./scripts/check-fixtures.sh
 python3 scripts/validate-project.py
-
 cd android
-./gradlew testDebugUnitTest
-./gradlew assembleDebug
-./gradlew lintDebug
-./gradlew assembleDebugAndroidTest
+./gradlew testDebugUnitTest assembleDebug lintDebug assembleDebugAndroidTest
+# Requires an Android emulator/device:
+./gradlew connectedDebugAndroidTest
 ```
 
-- Backend: 7 passing Ktor route, error, serialization, audio, byte-range, cover, health, and fixture tests.
-- Android JVM: 6 passing Retrofit-contract, Home ViewModel, and Player ViewModel tests.
-- Live Ktor smoke check passed `/health`, `/feed`, `/playlists`, `/playlist/1`, RIFF audio validation, and a partial-content byte-range request.
-- Debug APK assembled and its v2 signature verified with `apksigner`.
-- Android lint completed with 0 errors; its 15 warnings were newer-dependency notices rather than code defects.
-- The Room DAO instrumentation test compiled and packaged into the Android-test APK.
-
-Integration coverage: backend audio and Android JVM behavior are covered locally. Run `connectedDebugAndroidTest` on an emulator or physical device for Room instrumentation and hands-on Media3 playback; Compose requires Docker.
-
-### Test total
-
-The verified suites executed **84 tests**: 21 Agent AI, 24 OnlineOrder, 26 SocialAI, and 13 Spotify backend/JVM tests. Browser smoke checks, static checks, builds, lint, audits, race detection, fixture validation, APK verification, and the compiled Room instrumentation test are additional evidence and are not included in that number.
+See [engineering decisions and evidence boundaries](./docs/engineering-decisions.md) and each application README for rationale, prerequisites, and limitations.
 
 ## Repository hygiene
 
@@ -320,7 +284,7 @@ The source-level audit found no credentials or private keys in the project trees
 - Every `.env.example` contains blank credential fields or safe localhost values only.
 - Agent AI's upload directory, and SocialAI's data/media directories, contain only `.gitkeep`; no user uploads or persisted records were found.
 - OpenAI, SerpAPI, PostgreSQL, JWT, Elasticsearch, and cloud credential values remain external configuration.
-- Gradle Wrapper JARs, pnpm lockfiles, SocialAI's CI workflow, and Spotify's exported Room schema are intentional source artifacts.
+- Gradle Wrapper JARs, pnpm lockfiles, the root CI workflows, and Spotify's exported Room schema are intentional source artifacts.
 - Java, Go, Node.js, and Android toolchains are external prerequisites and are not committed to the repository.
 
 Generated dependencies, build products, Gradle caches, local SDKs, and verification binaries are excluded from version control:

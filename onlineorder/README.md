@@ -15,10 +15,10 @@ This is a live local run against the in-memory demo profile: sign in, browse Bur
 - CSRF protection for every state-changing request; passwords are sent in a form body, never in the URL
 - Public restaurant and menu browsing
 - Per-customer carts, quantity aggregation, precise decimal totals, and demo checkout that clears the active cart
-- Spring Cache for restaurants, menus, and carts—Caffeine in the default/PostgreSQL profile and the simple in-memory provider in the demo profile
+- Spring Cache for restaurants and menus; mutable carts are read directly from a repeatable-read database snapshot
 - PostgreSQL constraints, indexes, referential integrity, and idempotent seed data
 - Responsive React UI with registration, login, menu selection, cart drawer, and error/loading states
-- Unit tests plus an authenticated API integration test using an in-memory PostgreSQL-compatible H2 database
+- Unit tests, authenticated API tests using H2, and a separate real PostgreSQL concurrency contract
 - Docker images that run as non-root where applicable, health checks, and an Nginx reverse proxy
 
 Checkout is intentionally a cart-completion boundary: `/cart/checkout` deletes the current cart items and resets its total. The project does not process payment or persist a completed-order ledger.
@@ -146,6 +146,36 @@ Backend tests do not need PostgreSQL or Docker:
 cd backend
 ./gradlew test
 ```
+
+Run the concurrency contract against a **disposable** PostgreSQL database. The
+task initializes the application schema and fixtures, creates isolated test
+customers, and removes those customers afterward. Do not point it at a production
+database. CI supplies a dedicated PostgreSQL 17 service.
+
+```sh
+cd backend
+POSTGRES_TEST_URL=jdbc:postgresql://localhost:5432/onlineorder_test \
+POSTGRES_TEST_USER=postgres POSTGRES_TEST_PASSWORD=postgres ./gradlew postgresTest
+```
+
+This lane checks parallel quantity updates, checkout versus an overlapping read,
+and an add queued behind checkout's row lock. The normal suite also forces a
+delayed cart read to finish after checkout and verifies that the next read is
+fresh. The PostgreSQL task fails early if its database URL is missing; an H2 pass
+is not reported as PostgreSQL validation.
+
+### Cart consistency decision
+
+Cart writes lock their customer's cart row until commit, so quantity and decimal
+total updates serialize per customer. Reads use PostgreSQL `REPEATABLE READ` so
+the cart total and line items come from the same snapshot. An overlapping GET can
+finish with an older, internally consistent snapshot; a GET begun after checkout
+commits sees the cleared cart.
+
+Only menus and restaurants are cached. Evicting a mutable cart on writes does not
+prevent an older in-flight GET from filling the cache again. Removing that cache
+keeps the consistency boundary in PostgreSQL without introducing cache versions
+or distributed coordination for a local demo.
 
 Frontend tests and build:
 

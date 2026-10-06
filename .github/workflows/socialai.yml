@@ -2,6 +2,7 @@ name: SocialAI
 
 on:
   push:
+    branches: [main]
     paths: ['socialai/**', '.github/workflows/socialai.yml']
   pull_request:
     paths: ['socialai/**', '.github/workflows/socialai.yml']

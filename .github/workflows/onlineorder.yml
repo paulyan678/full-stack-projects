@@ -1,6 +1,7 @@
 name: OnlineOrder
 on:
   push:
+    branches: [main]
     paths: ['onlineorder/**', '.github/workflows/onlineorder.yml']
   pull_request:
     paths: ['onlineorder/**', '.github/workflows/onlineorder.yml']

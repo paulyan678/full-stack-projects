@@ -1,6 +1,7 @@
 name: Agent AI
 on:
   push:
+    branches: [main]
     paths: ['agent-ai/**', '.github/workflows/agent-ai.yml']
   pull_request:
     paths: ['agent-ai/**', '.github/workflows/agent-ai.yml']
